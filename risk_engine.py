@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 import yfinance as yf
-from pandas_datareader import data as pdr
+
 
 from dataclasses import dataclass
 from typing import Dict, Tuple, Optional
@@ -26,53 +26,29 @@ class RiskResults:
 # Data
 # ----------------------------
 
-def fetch_prices(
-    tickers: list[str],
-    start: str = "2018-01-01",
-    end: Optional[str] = None
-) -> pd.DataFrame:
+def fetch_prices(tickers: list[str], start: str = "2018-01-01", end: Optional[str] = None) -> pd.DataFrame:
     """
-    Try Yahoo (yfinance) first; if it fails, fallback to Stooq via pandas-datareader.
-    Returns adjusted close prices (auto_adjust=True).
+    Fetch adjusted close prices using yfinance.
     """
-    # --- Attempt Yahoo via yfinance ---
-    try:
-        df = yf.download(
-            tickers,
-            start=start,
-            end=end,
-            auto_adjust=True,
-            progress=False
-        )["Close"]
+    df = yf.download(
+        tickers,
+        start=start,
+        end=end,
+        auto_adjust=True,
+        progress=False
+    )["Close"]
 
-        if isinstance(df, pd.Series):
-            df = df.to_frame()
+    if isinstance(df, pd.Series):
+        df = df.to_frame()
 
-        df = df.dropna(how="all").dropna(axis=1)
+    df = df.dropna(how="all").dropna(axis=1)
 
-        if not df.empty and df.shape[1] > 0:
-            return df
-    except Exception as e:
-        print(f"Yahoo download failed, falling back to Stooq. Reason: {e}")
+    if df.empty:
+        raise RuntimeError("No price data returned from Yahoo Finance.")
 
-    # --- Fallback: Stooq (often reliable) ---
-    frames = []
-    for t in tickers:
-        sym = t.lower()
-        try:
-            s = pdr.DataReader(sym, "stooq", start, end)
-            s = s.sort_index()
-            frames.append(s["Close"].rename(t))
-        except Exception as e:
-            print(f"Stooq failed for {t}: {e}")
+    return df
 
-    if not frames:
-        raise RuntimeError("No price data returned from Yahoo or Stooq. Check internet or tickers.")
-
-    out = pd.concat(frames, axis=1).dropna(how="all").dropna(axis=1)
-    if out.empty:
-        raise RuntimeError("Price data fetched but empty after cleaning.")
-    return out
+   
 
 
 def compute_log_returns(prices: pd.DataFrame) -> pd.DataFrame:
